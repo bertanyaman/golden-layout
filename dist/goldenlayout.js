@@ -1220,7 +1220,7 @@ lm.utils.copy( lm.LayoutManager.prototype, {
 
 	/**
 	 * Extends the default config with the user specific settings and applies
-	 * derivations. Please note that there's a separate method (AbstractContentItem._extendItemNode)
+	 * derivations. Please note that there's a seperate method (AbstractContentItem._extendItemNode)
 	 * that deals with the extension of item configs
 	 *
 	 * @param   {Object} config
@@ -5265,13 +5265,26 @@ lm.utils.copy( lm.utils.ReactComponentHandler.prototype, {
 	 * @returns {void}
 	 */
 	_render: function() {
-		this._reactComponent = ReactDOM.render( this._getReactComponent(), this._container.getElement()[ 0 ] );
-		this._originalComponentWillUpdate = this._reactComponent.componentWillUpdate || function() {
-			};
-		this._reactComponent.componentWillUpdate = this._onUpdate.bind( this );
-		if( this._container.getState() ) {
-			this._reactComponent.setState( this._container.getState() );
-		}
+		var me = this;
+		
+		this._container.layoutManager.emit("onReactComponentCreating", {
+			componentClass:this._reactClass,
+			componentProps:this._getReactComponentProps({
+				parentElement:this._container.getElement()[ 0 ],
+				onCompleted:function(reactComponent){
+					me._reactComponent = reactComponent;
+					me._originalComponentWillUpdate = reactComponent.componentWillUpdate || function() {
+					};
+					
+					reactComponent.componentWillUpdate = me._onUpdate.bind( me );
+					if( me._container.getState() ) {
+						reactComponent.setState( me._container.getState() );
+					}
+				}
+			})
+		})
+		
+		this._originalComponentWillUpdate = function() { };
 	},
 
 	/**
@@ -5281,7 +5294,11 @@ lm.utils.copy( lm.utils.ReactComponentHandler.prototype, {
 	 * @returns {void}
 	 */
 	_destroy: function() {
-		ReactDOM.unmountComponentAtNode( this._container.getElement()[ 0 ] );
+		console.log("_destroy",this._container);
+		if(this._reactComponent && this._reactComponent.componentWillDestroy){
+			this._reactComponent.componentWillDestroy();
+		}
+		//ReactDOM.unmountComponentAtNode( this._container.getElement()[ 0 ] );
 		this._container.off( 'open', this._render, this );
 		this._container.off( 'destroy', this._destroy, this );
 	},
@@ -5328,12 +5345,16 @@ lm.utils.copy( lm.utils.ReactComponentHandler.prototype, {
 	 * @private
 	 * @returns {React.Element}
 	 */
-	_getReactComponent: function() {
+	_getReactComponentProps: function(exProps) {
 		var defaultProps = {
 			glEventHub: this._container.layoutManager.eventHub,
 			glContainer: this._container,
+			key: this._container.parent.config.id
 		};
 		var props = $.extend( defaultProps, this._container._config.props );
-		return React.createElement( this._reactClass, props );
+		props.parentElement = exProps.parentElement;
+		props.onCompleted = exProps.onCompleted;
+		
+		return props;
 	}
 } );})(window.$);
